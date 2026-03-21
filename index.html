@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Farm Mini Game</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Loading Screen (HTML is fine here, shown before JS loads) -->
+  <div id="loading-screen">
+    <div class="loading-content">
+      <img src="/assets/images/logo-banner.png" class="loading-logo" alt="Farm" />
+      <div class="loading-bar"><div class="loading-fill"></div></div>
+    </div>
+  </div>
+
+  <!-- Car wishlist labels (stay HTML for interactive sell buttons) -->
+  <div id="car-labels"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
