@@ -224,6 +224,57 @@ function iconImg(key, size = 22) {
 
 const storage = { corn: 0, tomato: 0, strawberry: 0, egg: 0, milk: 0 };
 
+const SAVE_KEY = "farm_save_v1";
+
+function resetFarm() {
+  localStorage.removeItem(SAVE_KEY);
+  location.reload();
+}
+
+function saveGame() {
+  const data = {
+    money,
+    storage: { ...storage },
+    cellState: cellState.map((row) => row.map((cell) => (cell ? { ...cell } : null))),
+  };
+  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+}
+
+function loadGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data.money != null) money = data.money;
+    if (data.storage) Object.assign(storage, data.storage);
+    if (data.cellState) {
+      for (let row = 0; row < GRID; row++)
+        for (let col = 0; col < GRID; col++)
+          cellState[row][col] = data.cellState[row]?.[col] ?? null;
+    }
+  } catch (e) {
+    console.warn("Failed to load save:", e);
+  }
+}
+
+function restoreCellMeshes() {
+  for (let row = 0; row < GRID; row++) {
+    for (let col = 0; col < GRID; col++) {
+      const state = cellState[row][col];
+      if (!state) continue;
+      if (isCrop(state.key)) {
+        spawnMesh(CROP_DEFS[state.key].stages[state.stage ?? 0], row, col);
+        createGrowthLabel(row, col);
+      } else if (isAnimal(state.key)) {
+        spawnMesh(state.key, row, col);
+        createGrowthLabel(row, col);
+      }
+      setTileMat(row, col);
+      updateGrowthLabelContent(row, col);
+    }
+  }
+}
+
 function renderStorage() {
   PixiUI.updateStoragePanel(storage);
   for (const car of carQueue) {
@@ -246,6 +297,7 @@ function harvestCell(row, col) {
   spawnMesh(CROP_DEFS[state.key].stages[0], row, col);
   setTileMat(row, col);
   updateGrowthLabelContent(row, col);
+  saveGame();
 }
 
 function collectAnimal(row, col) {
@@ -259,6 +311,7 @@ function collectAnimal(row, col) {
   state.startTime = Date.now();
   setTileMat(row, col);
   updateGrowthLabelContent(row, col);
+  saveGame();
 }
 
 const itemLibrary = new Map();
@@ -491,6 +544,7 @@ function placeItem(row, col, name) {
     updateGrowthLabelContent(row, col);
   }
   setTileMat(row, col);
+  saveGame();
 }
 
 function tickGrowth() {
@@ -672,6 +726,7 @@ function rebindCarSellButtons(car) {
       money += qty * SELL_PRICES[item];
       renderMoney();
       renderStorage();
+      saveGame();
       refreshCarLabel(car);
       if (Object.values(car.wishlist).every((v) => v <= 0)) startCarExit(car);
     });
@@ -704,8 +759,13 @@ function refreshCarLabel(car) {
     })
     .join("");
 
-  car.labelEl.innerHTML = rows;
+  car.labelEl.innerHTML = rows + `<div class="car-pass-row"><button class="car-pass-btn">Pass</button></div>`;
   rebindCarSellButtons(car);
+
+  car.labelEl.querySelector(".car-pass-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    startCarExit(car);
+  });
 }
 
 function updateCarLabelPos(car) {
@@ -846,7 +906,12 @@ const _pixiReady = PixiUI.initPixi().then(async () => {
 
 Promise.all([loadItemLibrary(), _pixiReady])
   .then(() => {
-    PixiUI.createButtons(() => PixiUI.showInfoModal(), () => toggleMute(), isMuted());
+    PixiUI.createButtons(
+      () => PixiUI.showInfoModal(),
+      () => PixiUI.showSettingsModal(),
+    );
+
+    PixiUI.buildSettingsModal(() => resetFarm(), () => toggleMute(), isMuted());
 
     PixiUI.buildInfoModal(
       ITEM_DEFS,
@@ -879,6 +944,8 @@ Promise.all([loadItemLibrary(), _pixiReady])
       },
     });
 
+    loadGame();
+    restoreCellMeshes();
     renderMoney();
     renderStorage();
     nextCarSpawn = performance.now() / 1000 + 10;

@@ -293,55 +293,14 @@ export function positionGrowthLabel(key, sx, sy) {
 }
 
 let _infoBtn;
-let _muteBtn;
-let _muteBtnLabel;
+let _settingsBtn;
 
-export function createButtons(onInfo, onMute, initialMuted = false) {
+export function createButtons(onInfo, onSettings) {
   _infoBtn = _makeIconButton("ℹ", 16, 16, onInfo);
   _layerHUD.addChild(_infoBtn);
 
-  const SIZE = 48;
-  _muteBtn = new Container();
-  _muteBtn.x = 16;
-  _muteBtn.y = 74;
-  _muteBtn.eventMode = "static";
-  _muteBtn.cursor = "pointer";
-  _muteBtn.hitArea = new Rectangle(0, 0, SIZE, SIZE);
-
-  const bg = new Graphics();
-  bg.roundRect(0, 0, SIZE, SIZE, 24)
-    .fill({ color: 0x000000, alpha: 0.65 })
-    .stroke({ color: 0xffffff, width: 1, alpha: 0.22 });
-  _muteBtn.addChild(bg);
-
-  _muteBtnLabel = new Text({
-    text: initialMuted ? "🔇" : "🔊",
-    style: { fontSize: 22, fontFamily: "'Segoe UI', sans-serif" },
-  });
-  _muteBtnLabel.x = SIZE / 2 - _muteBtnLabel.width / 2;
-  _muteBtnLabel.y = SIZE / 2 - _muteBtnLabel.height / 2;
-  _muteBtn.addChild(_muteBtnLabel);
-
-  _muteBtn.on("pointerdown", (e) => {
-    e.nativeEvent.stopPropagation();
-    const muted = onMute();
-    _muteBtnLabel.text = muted ? "🔇" : "🔊";
-    _muteBtnLabel.x = SIZE / 2 - _muteBtnLabel.width / 2;
-    _muteBtnLabel.y = SIZE / 2 - _muteBtnLabel.height / 2;
-  });
-  _muteBtn.on("pointerover", () => {
-    bg.clear();
-    bg.roundRect(0, 0, SIZE, SIZE, 24)
-      .fill({ color: 0x1a1a1a, alpha: 0.88 })
-      .stroke({ color: 0xffd700, width: 1, alpha: 0.5 });
-  });
-  _muteBtn.on("pointerout", () => {
-    bg.clear();
-    bg.roundRect(0, 0, SIZE, SIZE, 24)
-      .fill({ color: 0x000000, alpha: 0.65 })
-      .stroke({ color: 0xffffff, width: 1, alpha: 0.22 });
-  });
-  _layerHUD.addChild(_muteBtn);
+  _settingsBtn = _makeIconButton("⚙", 16, 74, onSettings);
+  _layerHUD.addChild(_settingsBtn);
 }
 
 function _makeIconButton(glyph, bx, by, onClick) {
@@ -394,9 +353,10 @@ function _makeIconButton(glyph, bx, by, onClick) {
 
 let _shopModalOpen = false;
 let _infoModalOpen = false;
+let _settingsModalOpen = false;
 
 export function isAnyModalOpen() {
-  return _shopModalOpen || _infoModalOpen;
+  return _shopModalOpen || _infoModalOpen || _settingsModalOpen;
 }
 
 let _backdrop;
@@ -998,6 +958,227 @@ function _repositionInfoModal() {
       window.innerHeight,
     );
   }
+}
+
+let _settingsModal;
+let _settingsConfirmMode = false;
+let _settingsResetBtnBg;
+let _settingsResetLabel;
+
+export function buildSettingsModal(onReset, onMute, initialMuted = false) {
+  const MODAL_W = 320;
+  const MODAL_H = 248;
+
+  _settingsModal = new Container();
+  _settingsModal.visible = false;
+  _layerModal.addChild(_settingsModal);
+
+  const bg = new Graphics();
+  bg.roundRect(0, 0, MODAL_W, MODAL_H, 20)
+    .fill({ color: 0x1a1a2e, alpha: 1 })
+    .stroke({ color: 0xffffff, width: 1, alpha: 0.1 });
+  _settingsModal.addChild(bg);
+
+  const headerBg = new Graphics();
+  headerBg.rect(0, 0, MODAL_W, 56).fill({ color: 0x1a1a2e, alpha: 1 });
+  headerBg.moveTo(0, 56).lineTo(MODAL_W, 56).stroke({ color: 0xffffff, width: 1, alpha: 0.08 });
+  _settingsModal.addChild(headerBg);
+
+  const title = new Text({
+    text: "⚙ Settings",
+    style: { fill: "#ffd700", fontSize: 18, fontWeight: "700", fontFamily: "'Segoe UI', sans-serif" },
+  });
+  title.x = 20;
+  title.y = 16;
+  _settingsModal.addChild(title);
+
+  const closeBtn = _makeCloseButton(() => hideSettingsModal());
+  closeBtn.x = MODAL_W - 46;
+  closeBtn.y = 13;
+  _settingsModal.addChild(closeBtn);
+
+  // Mute toggle row
+  const BTN_W = MODAL_W - 40;
+  const ROW_H = 44;
+
+  let _mutedState = initialMuted;
+  const muteRow = new Container();
+  muteRow.x = 20;
+  muteRow.y = 68;
+  muteRow.eventMode = "static";
+  muteRow.cursor = "pointer";
+  muteRow.hitArea = new Rectangle(0, 0, BTN_W, ROW_H);
+  _settingsModal.addChild(muteRow);
+
+  const muteRowBg = new Graphics();
+  muteRowBg
+    .roundRect(0, 0, BTN_W, ROW_H, 12)
+    .fill({ color: 0xffffff, alpha: 0.04 })
+    .stroke({ color: 0xffffff, width: 1, alpha: 0.08 });
+  muteRow.addChild(muteRowBg);
+
+  const muteIconLabel = new Text({
+    text: "🎵 Music",
+    style: { fill: "#ffffff", fontSize: 13, fontFamily: "'Segoe UI', sans-serif" },
+  });
+  muteIconLabel.x = 14;
+  muteIconLabel.y = ROW_H / 2 - muteIconLabel.height / 2;
+  muteRow.addChild(muteIconLabel);
+
+  const muteToggleBg = new Graphics();
+  const muteToggleLabel = new Text({
+    text: _mutedState ? "🔇 Off" : "🔊 On",
+    style: { fill: _mutedState ? "#ff8888" : "#88ff88", fontSize: 12, fontWeight: "700", fontFamily: "'Segoe UI', sans-serif" },
+  });
+
+  function _drawMuteToggle() {
+    const tw = muteToggleLabel.width + 20;
+    muteToggleBg.clear();
+    muteToggleBg
+      .roundRect(0, 0, tw, 26, 8)
+      .fill({ color: _mutedState ? 0xf44336 : 0x44cc66, alpha: 0.18 })
+      .stroke({ color: _mutedState ? 0xf44336 : 0x44cc66, width: 1, alpha: 0.5 });
+    muteToggleBg.x = BTN_W - tw - 10;
+    muteToggleBg.y = ROW_H / 2 - 13;
+    muteToggleLabel.x = BTN_W - muteToggleLabel.width - 20;
+    muteToggleLabel.y = ROW_H / 2 - muteToggleLabel.height / 2;
+    muteToggleLabel.style.fill = _mutedState ? "#ff8888" : "#88ff88";
+  }
+
+  muteRow.addChild(muteToggleBg);
+  muteRow.addChild(muteToggleLabel);
+  _drawMuteToggle();
+
+  muteRow.on("pointerdown", (e) => {
+    e.nativeEvent.stopPropagation();
+    _mutedState = onMute();
+    muteToggleLabel.text = _mutedState ? "🔇 Off" : "🔊 On";
+    _drawMuteToggle();
+  });
+  muteRow.on("pointerover", () => {
+    muteRowBg.clear();
+    muteRowBg
+      .roundRect(0, 0, BTN_W, ROW_H, 12)
+      .fill({ color: 0xffffff, alpha: 0.09 })
+      .stroke({ color: 0xffd700, width: 1, alpha: 0.3 });
+  });
+  muteRow.on("pointerout", () => {
+    muteRowBg.clear();
+    muteRowBg
+      .roundRect(0, 0, BTN_W, ROW_H, 12)
+      .fill({ color: 0xffffff, alpha: 0.04 })
+      .stroke({ color: 0xffffff, width: 1, alpha: 0.08 });
+  });
+
+  // Reset button
+  const BTN_H = 44;
+  const resetBtn = new Container();
+  resetBtn.x = 20;
+  resetBtn.y = 126;
+  resetBtn.eventMode = "static";
+  resetBtn.cursor = "pointer";
+  resetBtn.hitArea = new Rectangle(0, 0, BTN_W, BTN_H);
+  _settingsModal.addChild(resetBtn);
+
+  _settingsResetBtnBg = new Graphics();
+  _settingsResetBtnBg
+    .roundRect(0, 0, BTN_W, BTN_H, 12)
+    .fill({ color: 0xf44336, alpha: 0.15 })
+    .stroke({ color: 0xf44336, width: 1, alpha: 0.4 });
+  resetBtn.addChild(_settingsResetBtnBg);
+
+  _settingsResetLabel = new Text({
+    text: "🗑 Reset Farm",
+    style: { fill: "#ff7070", fontSize: 14, fontWeight: "700", fontFamily: "'Segoe UI', sans-serif" },
+  });
+  _settingsResetLabel.x = BTN_W / 2 - _settingsResetLabel.width / 2;
+  _settingsResetLabel.y = BTN_H / 2 - _settingsResetLabel.height / 2;
+  resetBtn.addChild(_settingsResetLabel);
+
+  const warnText = new Text({
+    text: "All progress will be lost.",
+    style: { fill: "rgba(255,255,255,0.35)", fontSize: 11, fontFamily: "'Segoe UI', sans-serif" },
+  });
+  warnText.x = MODAL_W / 2 - warnText.width / 2;
+  warnText.y = 196;
+  _settingsModal.addChild(warnText);
+
+  resetBtn.on("pointerdown", (e) => {
+    e.nativeEvent.stopPropagation();
+    if (!_settingsConfirmMode) {
+      _settingsConfirmMode = true;
+      _settingsResetLabel.text = "⚠ Confirm Reset?";
+      _settingsResetLabel.x = BTN_W / 2 - _settingsResetLabel.width / 2;
+      _settingsResetBtnBg.clear();
+      _settingsResetBtnBg
+        .roundRect(0, 0, BTN_W, BTN_H, 12)
+        .fill({ color: 0xf44336, alpha: 0.45 })
+        .stroke({ color: 0xf44336, width: 2, alpha: 0.9 });
+    } else {
+      onReset();
+    }
+  });
+  resetBtn.on("pointerover", () => {
+    if (_settingsConfirmMode) return;
+    _settingsResetBtnBg.clear();
+    _settingsResetBtnBg
+      .roundRect(0, 0, BTN_W, BTN_H, 12)
+      .fill({ color: 0xf44336, alpha: 0.28 })
+      .stroke({ color: 0xf44336, width: 1, alpha: 0.5 });
+  });
+  resetBtn.on("pointerout", () => {
+    if (_settingsConfirmMode) return;
+    _settingsResetBtnBg.clear();
+    _settingsResetBtnBg
+      .roundRect(0, 0, BTN_W, BTN_H, 12)
+      .fill({ color: 0xf44336, alpha: 0.15 })
+      .stroke({ color: 0xf44336, width: 1, alpha: 0.4 });
+  });
+
+  _repositionSettingsModal();
+  window.addEventListener("resize", _repositionSettingsModal);
+}
+
+function _repositionSettingsModal() {
+  if (!_settingsModal) return;
+  const MODAL_W = 320;
+  const MODAL_H = 248;
+  const scale = Math.min(1, (window.innerWidth - 16) / MODAL_W);
+  _settingsModal.scale.set(scale);
+  _settingsModal.x = Math.floor((window.innerWidth - MODAL_W * scale) / 2);
+  _settingsModal.y = Math.floor((window.innerHeight - MODAL_H * scale) / 2);
+  if (_backdrop) {
+    _backdrop.clear();
+    _backdrop.rect(0, 0, window.innerWidth, window.innerHeight).fill({ color: 0x000000, alpha: 0.6 });
+    _backdrop.hitArea = new Rectangle(0, 0, window.innerWidth, window.innerHeight);
+  }
+}
+
+export function showSettingsModal() {
+  if (!_settingsModal) return;
+  _settingsConfirmMode = false;
+  if (_settingsResetLabel) {
+    _settingsResetLabel.text = "🗑 Reset Farm";
+    _settingsResetLabel.x = 280 / 2 - _settingsResetLabel.width / 2;
+  }
+  if (_settingsResetBtnBg) {
+    _settingsResetBtnBg.clear();
+    _settingsResetBtnBg
+      .roundRect(0, 0, 280, 44, 12)
+      .fill({ color: 0xf44336, alpha: 0.15 })
+      .stroke({ color: 0xf44336, width: 1, alpha: 0.4 });
+  }
+  _settingsModalOpen = true;
+  _settingsModal.visible = true;
+  _ensureBackdrop(() => hideSettingsModal());
+  _layerModal.addChild(_settingsModal);
+}
+
+export function hideSettingsModal() {
+  if (!_settingsModal) return;
+  _settingsModal.visible = false;
+  _settingsModalOpen = false;
+  if (!_shopModalOpen && !_infoModalOpen) _removeBackdrop();
 }
 
 export function showInfoModal() {

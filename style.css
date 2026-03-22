@@ -118,6 +118,26 @@ body {
 .car-sell-btn:hover {
   background: rgba(80, 200, 80, 0.45);
 }
+.car-pass-row {
+  margin-top: 5px;
+  text-align: center;
+}
+.car-pass-btn {
+  background: rgba(200, 80, 80, 0.2);
+  border: 1px solid rgba(200, 80, 80, 0.5);
+  color: #ff8888;
+  border-radius: 5px;
+  padding: clamp(2px, 0.5vw, 3px) clamp(8px, 2vw, 14px);
+  font-size: clamp(6px, 1.75vw, 11px);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+.car-pass-btn:active,
+.car-pass-btn:hover {
+  background: rgba(200, 80, 80, 0.45);
+}
 
 .item-icon { object-fit: contain; display: inline-block; vertical-align: middle; }
 
