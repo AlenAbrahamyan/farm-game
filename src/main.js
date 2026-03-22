@@ -565,8 +565,19 @@ window.addEventListener("pointermove", (e) => {
   if (hoveredCell) setTileMat(hoveredCell.row, hoveredCell.col);
 });
 
+let _downX = 0, _downY = 0;
+
 window.addEventListener("pointerdown", (e) => {
+  _downX = e.clientX;
+  _downY = e.clientY;
+});
+
+window.addEventListener("pointerup", (e) => {
   if (PixiUI.isAnyModalOpen()) return;
+  const dx = e.clientX - _downX;
+  const dy = e.clientY - _downY;
+  if (Math.sqrt(dx * dx + dy * dy) > 6) return; // drag, not a click
+
   const hit = hitTile(e);
   const prev = selectedCell;
   if (hit) {
@@ -877,6 +888,9 @@ Promise.all([loadItemLibrary(), _pixiReady])
       setTimeout(() => loading.remove(), 600);
     }
     playBg();
+
+    setTimeout(() => window.dispatchEvent(new Event("resize")), 300);
+    setTimeout(() => window.dispatchEvent(new Event("resize")), 800);
   })
   .catch((err) => {
     console.error("Boot failed:", err);
