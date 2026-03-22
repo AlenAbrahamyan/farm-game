@@ -117,12 +117,12 @@ export async function createStoragePanel(itemIcons) {
 
   const header = new Container();
   header.x = 14;
-  header.y = 12;
+  header.y = 10;
   _storageRoot.addChild(header);
 
   if (_iconCache.has("_storage")) {
     const si = new Sprite(_iconCache.get("_storage"));
-    si.width = si.height = 24;
+    si.width = si.height = 18;
     header.addChild(si);
   }
 
@@ -130,18 +130,18 @@ export async function createStoragePanel(itemIcons) {
     text: "Storage",
     style: {
       fill: "#ffd700",
-      fontSize: 20,
+      fontSize: 15,
       fontWeight: "700",
       fontFamily: "'Segoe UI', sans-serif",
     },
   });
-  ht.x = 30;
-  ht.y = 2;
+  ht.x = 24;
+  ht.y = 1;
   header.addChild(ht);
 
   _storageBody = new Container();
   _storageBody.x = 14;
-  _storageBody.y = 52;
+  _storageBody.y = 40;
   _storageRoot.addChild(_storageBody);
 
   updateStoragePanel({});
@@ -159,41 +159,41 @@ export function updateStoragePanel(storage) {
       text: "Empty",
       style: {
         fill: "#ffd700",
-        fontSize: 22,
+        fontSize: 16,
         fontStyle: "italic",
         fontFamily: "'Segoe UI', sans-serif",
       },
     });
     _storageBody.addChild(empty);
-    y = 32;
+    y = 22;
   } else {
     for (const [key, count] of items) {
       const row = new Container();
       row.y = y;
       if (_iconCache.has(key)) {
         const ic = new Sprite(_iconCache.get(key));
-        ic.width = ic.height = 36;
+        ic.width = ic.height = 26;
         row.addChild(ic);
       }
       const ct = new Text({
         text: `×${count}`,
         style: {
           fill: "#ffd700",
-          fontSize: 26,
+          fontSize: 18,
           fontWeight: "700",
           fontFamily: "'Segoe UI', sans-serif",
         },
       });
-      ct.x = 44;
-      ct.y = 4;
+      ct.x = 32;
+      ct.y = 3;
       row.addChild(ct);
       _storageBody.addChild(row);
-      y += 44;
+      y += 32;
     }
   }
 
-  const panelW = 170;
-  _storagePanelH = 14 + 22 + 6 + y + 12;
+  const panelW = 130;
+  _storagePanelH = 10 + 18 + 4 + y + 10;
   _storageBg.clear();
   _storageBg
     .roundRect(0, 0, panelW, _storagePanelH, 18)
