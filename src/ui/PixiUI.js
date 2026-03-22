@@ -18,7 +18,6 @@ export async function initPixi() {
   await app.init({
     backgroundAlpha: 0,
     resizeTo: window,
-    resolution: window.devicePixelRatio,
     autoDensity: true,
   });
   const cv = app.canvas;
@@ -981,12 +980,20 @@ export function buildSettingsModal(onReset, onMute, initialMuted = false) {
 
   const headerBg = new Graphics();
   headerBg.rect(0, 0, MODAL_W, 56).fill({ color: 0x1a1a2e, alpha: 1 });
-  headerBg.moveTo(0, 56).lineTo(MODAL_W, 56).stroke({ color: 0xffffff, width: 1, alpha: 0.08 });
+  headerBg
+    .moveTo(0, 56)
+    .lineTo(MODAL_W, 56)
+    .stroke({ color: 0xffffff, width: 1, alpha: 0.08 });
   _settingsModal.addChild(headerBg);
 
   const title = new Text({
     text: "⚙ Settings",
-    style: { fill: "#ffd700", fontSize: 18, fontWeight: "700", fontFamily: "'Segoe UI', sans-serif" },
+    style: {
+      fill: "#ffd700",
+      fontSize: 18,
+      fontWeight: "700",
+      fontFamily: "'Segoe UI', sans-serif",
+    },
   });
   title.x = 20;
   title.y = 16;
@@ -1019,7 +1026,11 @@ export function buildSettingsModal(onReset, onMute, initialMuted = false) {
 
   const muteIconLabel = new Text({
     text: "🎵 Music",
-    style: { fill: "#ffffff", fontSize: 13, fontFamily: "'Segoe UI', sans-serif" },
+    style: {
+      fill: "#ffffff",
+      fontSize: 13,
+      fontFamily: "'Segoe UI', sans-serif",
+    },
   });
   muteIconLabel.x = 14;
   muteIconLabel.y = ROW_H / 2 - muteIconLabel.height / 2;
@@ -1028,7 +1039,12 @@ export function buildSettingsModal(onReset, onMute, initialMuted = false) {
   const muteToggleBg = new Graphics();
   const muteToggleLabel = new Text({
     text: _mutedState ? "🔇 Off" : "🔊 On",
-    style: { fill: _mutedState ? "#ff8888" : "#88ff88", fontSize: 12, fontWeight: "700", fontFamily: "'Segoe UI', sans-serif" },
+    style: {
+      fill: _mutedState ? "#ff8888" : "#88ff88",
+      fontSize: 12,
+      fontWeight: "700",
+      fontFamily: "'Segoe UI', sans-serif",
+    },
   });
 
   function _drawMuteToggle() {
@@ -1037,7 +1053,11 @@ export function buildSettingsModal(onReset, onMute, initialMuted = false) {
     muteToggleBg
       .roundRect(0, 0, tw, 26, 8)
       .fill({ color: _mutedState ? 0xf44336 : 0x44cc66, alpha: 0.18 })
-      .stroke({ color: _mutedState ? 0xf44336 : 0x44cc66, width: 1, alpha: 0.5 });
+      .stroke({
+        color: _mutedState ? 0xf44336 : 0x44cc66,
+        width: 1,
+        alpha: 0.5,
+      });
     muteToggleBg.x = BTN_W - tw - 10;
     muteToggleBg.y = ROW_H / 2 - 13;
     muteToggleLabel.x = BTN_W - muteToggleLabel.width - 20;
@@ -1089,7 +1109,12 @@ export function buildSettingsModal(onReset, onMute, initialMuted = false) {
 
   _settingsResetLabel = new Text({
     text: "🗑 Reset Farm",
-    style: { fill: "#ff7070", fontSize: 14, fontWeight: "700", fontFamily: "'Segoe UI', sans-serif" },
+    style: {
+      fill: "#ff7070",
+      fontSize: 14,
+      fontWeight: "700",
+      fontFamily: "'Segoe UI', sans-serif",
+    },
   });
   _settingsResetLabel.x = BTN_W / 2 - _settingsResetLabel.width / 2;
   _settingsResetLabel.y = BTN_H / 2 - _settingsResetLabel.height / 2;
@@ -1097,7 +1122,11 @@ export function buildSettingsModal(onReset, onMute, initialMuted = false) {
 
   const warnText = new Text({
     text: "All progress will be lost.",
-    style: { fill: "rgba(255,255,255,0.35)", fontSize: 11, fontFamily: "'Segoe UI', sans-serif" },
+    style: {
+      fill: "rgba(255,255,255,0.35)",
+      fontSize: 11,
+      fontFamily: "'Segoe UI', sans-serif",
+    },
   });
   warnText.x = MODAL_W / 2 - warnText.width / 2;
   warnText.y = 196;
@@ -1149,8 +1178,15 @@ function _repositionSettingsModal() {
   _settingsModal.y = Math.floor((window.innerHeight - MODAL_H * scale) / 2);
   if (_backdrop) {
     _backdrop.clear();
-    _backdrop.rect(0, 0, window.innerWidth, window.innerHeight).fill({ color: 0x000000, alpha: 0.6 });
-    _backdrop.hitArea = new Rectangle(0, 0, window.innerWidth, window.innerHeight);
+    _backdrop
+      .rect(0, 0, window.innerWidth, window.innerHeight)
+      .fill({ color: 0x000000, alpha: 0.6 });
+    _backdrop.hitArea = new Rectangle(
+      0,
+      0,
+      window.innerWidth,
+      window.innerHeight,
+    );
   }
 }
 
