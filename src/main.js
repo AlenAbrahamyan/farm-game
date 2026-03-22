@@ -1,6 +1,14 @@
 import * as THREE from "three";
 import * as PixiUI from "./ui/PixiUI.js";
-import { playBg, playClick, playChicken, playCow, playPopup, toggleMute, isMuted } from "./sounds.js";
+import {
+  playBg,
+  playClick,
+  playChicken,
+  playCow,
+  playPopup,
+  toggleMute,
+  isMuted,
+} from "./sounds.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
@@ -235,7 +243,9 @@ function saveGame() {
   const data = {
     money,
     storage: { ...storage },
-    cellState: cellState.map((row) => row.map((cell) => (cell ? { ...cell } : null))),
+    cellState: cellState.map((row) =>
+      row.map((cell) => (cell ? { ...cell } : null)),
+    ),
   };
   localStorage.setItem(SAVE_KEY, JSON.stringify(data));
 }
@@ -602,10 +612,18 @@ window.addEventListener("keydown", (e) => {
     const p = camera.position;
     const r = camera.rotation;
     console.log("📷 Camera details:");
-    console.log(`  position : x=${p.x.toFixed(3)}, y=${p.y.toFixed(3)}, z=${p.z.toFixed(3)}`);
-    console.log(`  rotation : x=${r.x.toFixed(3)}, y=${r.y.toFixed(3)}, z=${r.z.toFixed(3)} (rad)`);
-    console.log(`  target   : x=${controls.target.x.toFixed(3)}, y=${controls.target.y.toFixed(3)}, z=${controls.target.z.toFixed(3)}`);
-    console.log(`  zoom/dist: ${camera.position.distanceTo(controls.target).toFixed(3)}`);
+    console.log(
+      `  position : x=${p.x.toFixed(3)}, y=${p.y.toFixed(3)}, z=${p.z.toFixed(3)}`,
+    );
+    console.log(
+      `  rotation : x=${r.x.toFixed(3)}, y=${r.y.toFixed(3)}, z=${r.z.toFixed(3)} (rad)`,
+    );
+    console.log(
+      `  target   : x=${controls.target.x.toFixed(3)}, y=${controls.target.y.toFixed(3)}, z=${controls.target.z.toFixed(3)}`,
+    );
+    console.log(
+      `  zoom/dist: ${camera.position.distanceTo(controls.target).toFixed(3)}`,
+    );
     console.log(`  fov      : ${camera.fov}`);
   }
 });
@@ -619,7 +637,8 @@ window.addEventListener("pointermove", (e) => {
   if (hoveredCell) setTileMat(hoveredCell.row, hoveredCell.col);
 });
 
-let _downX = 0, _downY = 0;
+let _downX = 0,
+  _downY = 0;
 
 window.addEventListener("pointerdown", (e) => {
   _downX = e.clientX;
@@ -759,7 +778,9 @@ function refreshCarLabel(car) {
     })
     .join("");
 
-  car.labelEl.innerHTML = rows + `<div class="car-pass-row"><button class="car-pass-btn">Pass</button></div>`;
+  car.labelEl.innerHTML =
+    rows +
+    `<div class="car-pass-row"><button class="car-pass-btn">Pass</button></div>`;
   rebindCarSellButtons(car);
 
   car.labelEl.querySelector(".car-pass-btn").addEventListener("click", (e) => {
@@ -911,7 +932,11 @@ Promise.all([loadItemLibrary(), _pixiReady])
       () => PixiUI.showSettingsModal(),
     );
 
-    PixiUI.buildSettingsModal(() => resetFarm(), () => toggleMute(), isMuted());
+    PixiUI.buildSettingsModal(
+      () => resetFarm(),
+      () => toggleMute(),
+      isMuted(),
+    );
 
     PixiUI.buildInfoModal(
       ITEM_DEFS,
@@ -956,8 +981,7 @@ Promise.all([loadItemLibrary(), _pixiReady])
     }
     playBg();
 
-    setTimeout(() => window.dispatchEvent(new Event("resize")), 300);
-    setTimeout(() => window.dispatchEvent(new Event("resize")), 800);
+    setInterval(() => window.dispatchEvent(new Event("resize")), 1000);
   })
   .catch((err) => {
     console.error("Boot failed:", err);
