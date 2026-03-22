@@ -18,7 +18,6 @@ export async function initPixi() {
   await app.init({
     backgroundAlpha: 0,
     resizeTo: window,
-    resolution: 1.5,
     autoDensity: true,
   });
   const cv = app.canvas;
