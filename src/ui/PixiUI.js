@@ -28,11 +28,6 @@ export async function initPixi() {
   _layerGrowth = new Container();
   _layerModal = new Container();
   app.stage.addChild(_layerHUD, _layerGrowth, _layerModal);
-
-  app.canvas.addEventListener("pointerdown", (e) => {
-    if (!isAnyModalOpen()) {
-    }
-  });
 }
 
 export function getCanvas() {
@@ -400,6 +395,7 @@ let _shopCallbacks = {};
 let _shopItemDefs = [];
 let _shopCropDefs = {};
 let _shopAnimalDefs = {};
+let _shopCloseLocked = false;
 
 export async function buildShopModal(
   itemDefs,
@@ -642,6 +638,49 @@ export async function buildShopModal(
   window.addEventListener("resize", _repositionShopModal);
 }
 
+export function setShopLock(allowedKey) {
+  for (const { key, cardRoot, cardBg } of _shopCards) {
+    if (key === allowedKey) continue;
+    cardRoot.eventMode = "none";
+    cardRoot._locked = true;
+    cardBg.clear();
+    cardBg
+      .roundRect(0, 0, 155, 148, 14)
+      .fill({ color: 0x000000, alpha: 0.45 })
+      .stroke({ color: 0xffffff, width: 1, alpha: 0.04 });
+  }
+}
+
+export function clearShopLock() {
+  for (const { cardRoot, cardBg } of _shopCards) {
+    if (!cardRoot._locked) continue;
+    cardRoot._locked = false;
+    cardRoot.eventMode = "static";
+    cardBg.clear();
+    cardBg
+      .roundRect(0, 0, 155, 148, 14)
+      .fill({ color: 0xffffff, alpha: cardRoot._cantAfford ? 0.02 : 0.05 })
+      .stroke({ color: 0xffffff, width: 1.5, alpha: 0.1 });
+  }
+}
+
+export function getShopCardScreenPos(key) {
+  if (!_shopModal || !_shopModal.visible) return null;
+  const CARD_W = 155,
+    CARD_H = 148,
+    GAP = 10,
+    PAD = 16,
+    COLS = 3;
+  const idx = _shopItemDefs.findIndex((d) => d.key === key);
+  if (idx < 0) return null;
+  const col = idx % COLS;
+  const row = Math.floor(idx / COLS);
+  const scale = _shopModal.scale.x;
+  const cx = PAD + col * (CARD_W + GAP) + CARD_W / 2;
+  const cy = 66 + row * (CARD_H + GAP) + CARD_H / 2;
+  return { x: _shopModal.x + cx * scale, y: _shopModal.y + cy * scale };
+}
+
 function _repositionShopModal() {
   if (!_shopModal) return;
   const MODAL_W = 520;
@@ -708,8 +747,12 @@ export function showShopModal(currentKey, money) {
   _layerModal.addChild(_shopModal);
 }
 
+export function setShopCloseLocked(v) {
+  _shopCloseLocked = v;
+}
+
 export function hideShopModal() {
-  if (!_shopModal) return;
+  if (!_shopModal || _shopCloseLocked) return;
   _shopModal.visible = false;
   _shopModalOpen = false;
   if (!_infoModalOpen) _removeBackdrop();
@@ -1004,7 +1047,6 @@ export function buildSettingsModal(onReset, onMute, initialMuted = false) {
   closeBtn.y = 13;
   _settingsModal.addChild(closeBtn);
 
-  // Mute toggle row
   const BTN_W = MODAL_W - 40;
   const ROW_H = 44;
 
@@ -1090,7 +1132,6 @@ export function buildSettingsModal(onReset, onMute, initialMuted = false) {
       .stroke({ color: 0xffffff, width: 1, alpha: 0.08 });
   });
 
-  // Reset button
   const BTN_H = 44;
   const resetBtn = new Container();
   resetBtn.x = 20;

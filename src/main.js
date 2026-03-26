@@ -1,6 +1,15 @@
 import * as THREE from "three";
 import * as PixiUI from "./ui/PixiUI.js";
 import {
+  initTutorial,
+  tutorialStep,
+  advanceTutorial,
+  showArrow,
+  hideArrow,
+  showHint,
+  STEPS as TUT_STEPS,
+} from "./tutorial.js";
+import {
   playBg,
   playClick,
   playChicken,
@@ -77,6 +86,7 @@ import {
   CAR_ROTATION_Y,
   CAR_SCALE,
   CAR_LABEL_Y,
+  CAR_PATIENCE,
   CAR_WISH_MIN_TYPES,
   CAR_WISH_MAX_TYPES,
   CAR_WISH_MIN_QTY,
@@ -158,23 +168,37 @@ const tileMeshes = [];
 const itemMeshes = [];
 
 const tileGeo = new THREE.BoxGeometry(CELL, TILE_HEIGHT, CELL);
-const MAT_DEFAULT = new THREE.MeshLambertMaterial({
-  color: TILE_COLOR_DEFAULT,
-});
-const MAT_HOVER = new THREE.MeshLambertMaterial({ color: TILE_COLOR_HOVER });
-const MAT_SELECTED = new THREE.MeshLambertMaterial({
-  color: TILE_COLOR_SELECTED,
-});
-const MAT_OCCUPIED = new THREE.MeshLambertMaterial({
-  color: TILE_COLOR_OCCUPIED,
-});
-const MAT_READY = new THREE.MeshLambertMaterial({ color: TILE_COLOR_READY });
+const MAT_DEFAULT  = new THREE.MeshLambertMaterial({ color: TILE_COLOR_DEFAULT });
+const MAT_HOVER    = new THREE.MeshLambertMaterial({ color: TILE_COLOR_HOVER });
+const MAT_SELECTED = new THREE.MeshLambertMaterial({ color: TILE_COLOR_SELECTED });
+const MAT_OCCUPIED = new THREE.MeshLambertMaterial({ color: TILE_COLOR_OCCUPIED });
+const MAT_READY    = new THREE.MeshLambertMaterial({ color: TILE_COLOR_READY });
+const MAT_LOCKED   = new THREE.MeshLambertMaterial({ color: 0x3a2a18, transparent: true, opacity: 0.55 });
+
+const _lockedCells = new Set();          
+let _tutTargetCell  = null;              
+let _tutPlantedCell = null;          
+
+function _setTutorialLock(activeRow, activeCol) {
+  _lockedCells.clear();
+  for (let r = 0; r < GRID; r++)
+    for (let c = 0; c < GRID; c++)
+      if (r !== activeRow || c !== activeCol) _lockedCells.add(`${r},${c}`);
+  for (let r = 0; r < GRID; r++)
+    for (let c = 0; c < GRID; c++) setTileMat(r, c);
+}
+
+function _clearTutorialLock() {
+  _lockedCells.clear();
+  for (let r = 0; r < GRID; r++)
+    for (let c = 0; c < GRID; c++) setTileMat(r, c);
+}
 
 for (let row = 0; row < GRID; row++) {
   tileMeshes.push([]);
   itemMeshes.push([]);
   for (let col = 0; col < GRID; col++) {
-    const mesh = new THREE.Mesh(tileGeo, MAT_DEFAULT.clone());
+    const mesh = new THREE.Mesh(tileGeo, MAT_DEFAULT);
     mesh.position.set(ORIGIN + col * PITCH, 0, ORIGIN + row * PITCH);
     mesh.receiveShadow = true;
     mesh.userData = { row, col };
@@ -197,12 +221,14 @@ function setTileMat(row, col) {
   const isHov = hoveredCell?.row === row && hoveredCell?.col === col;
   const isOcc = cellState[row][col] !== null;
   const isReady = isReadyToCollect(row, col);
+  const isLocked = _lockedCells.has(`${row},${col}`);
   let mat = MAT_DEFAULT;
-  if (isSel) mat = MAT_SELECTED;
+  if (isLocked) mat = MAT_LOCKED;
+  else if (isSel) mat = MAT_SELECTED;
   else if (isReady) mat = MAT_READY;
   else if (isHov) mat = MAT_HOVER;
   else if (isOcc) mat = MAT_OCCUPIED;
-  tileMeshes[row][col].material = mat.clone();
+  tileMeshes[row][col].material = mat;
 }
 
 let money = STARTING_MONEY;
@@ -232,60 +258,11 @@ function iconImg(key, size = 22) {
 
 const storage = { corn: 0, tomato: 0, strawberry: 0, egg: 0, milk: 0 };
 
-const SAVE_KEY = "farm_save_v1";
-
 function resetFarm() {
-  localStorage.removeItem(SAVE_KEY);
   location.reload();
 }
 
-function saveGame() {
-  const data = {
-    money,
-    storage: { ...storage },
-    cellState: cellState.map((row) =>
-      row.map((cell) => (cell ? { ...cell } : null)),
-    ),
-  };
-  localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-}
-
-function loadGame() {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return;
-    const data = JSON.parse(raw);
-    if (data.money != null) money = data.money;
-    if (data.storage) Object.assign(storage, data.storage);
-    if (data.cellState) {
-      for (let row = 0; row < GRID; row++)
-        for (let col = 0; col < GRID; col++)
-          cellState[row][col] = data.cellState[row]?.[col] ?? null;
-    }
-  } catch (e) {
-    console.warn("Failed to load save:", e);
-  }
-}
-
-function restoreCellMeshes() {
-  for (let row = 0; row < GRID; row++) {
-    for (let col = 0; col < GRID; col++) {
-      const state = cellState[row][col];
-      if (!state) continue;
-      if (isCrop(state.key)) {
-        spawnMesh(CROP_DEFS[state.key].stages[state.stage ?? 0], row, col);
-        createGrowthLabel(row, col);
-      } else if (isAnimal(state.key)) {
-        spawnMesh(state.key, row, col);
-        createGrowthLabel(row, col);
-      }
-      setTileMat(row, col);
-      updateGrowthLabelContent(row, col);
-    }
-  }
-}
-
-function renderStorage() {
+function updateStorageUI() {
   PixiUI.updateStoragePanel(storage);
   for (const car of carQueue) {
     if (car.state === "serving") refreshCarLabel(car);
@@ -297,17 +274,18 @@ function harvestCell(row, col) {
   if (!state || !isCrop(state.key) || !isFullyGrown(row, col)) return;
   storage[state.key] = (storage[state.key] || 0) + 1;
   playPopup();
-  renderStorage();
+  updateStorageUI();
   state.stage = 0;
   state.startTime = Date.now();
-  if (itemMeshes[row][col]) {
-    scene.remove(itemMeshes[row][col]);
-    itemMeshes[row][col] = null;
-  }
+  removeCellMesh(row, col);
   spawnMesh(CROP_DEFS[state.key].stages[0], row, col);
   setTileMat(row, col);
   updateGrowthLabelContent(row, col);
-  saveGame();
+
+  if (tutorialStep() === "harvest") {
+    _clearTutorialLock();
+    _advance("car_wait");
+  }
 }
 
 function collectAnimal(row, col) {
@@ -317,14 +295,15 @@ function collectAnimal(row, col) {
   storage[product] = (storage[product] || 0) + 1;
   if (state.key === "chicken") playChicken();
   else if (state.key === "cow") playCow();
-  renderStorage();
+  updateStorageUI();
   state.startTime = Date.now();
   setTileMat(row, col);
   updateGrowthLabelContent(row, col);
-  saveGame();
+
 }
 
 const itemLibrary = new Map();
+const itemMixers = new Map(); 
 
 function getCellKey(row, col) {
   return cellState[row][col]?.key ?? null;
@@ -333,7 +312,7 @@ function isCrop(key) {
   return key != null && key in CROP_DEFS;
 }
 
-function computeFitParams(source, def = {}) {
+function computeFitParams(source, def = {}, animations = []) {
   const userScale = def.scale ?? 1.0;
   const userOffset = def.offset ?? { x: 0, y: 0, z: 0 };
 
@@ -359,6 +338,7 @@ function computeFitParams(source, def = {}) {
     offsetX: -center.x + userOffset.x,
     offsetY: -b2.min.y + userOffset.y,
     offsetZ: -center.z + userOffset.z,
+    animations,
   };
 }
 
@@ -410,7 +390,7 @@ async function loadItemLibrary() {
       console.warn(`items.glb: "${def.node}" not found`);
       continue;
     }
-    itemLibrary.set(def.key, computeFitParams(node, def));
+    itemLibrary.set(def.key, computeFitParams(node, def, itemsGltf.animations));
   }
 
   for (const [cropKey, cropDef] of Object.entries(CROP_DEFS)) {
@@ -421,12 +401,12 @@ async function loadItemLibrary() {
         console.warn(`items.glb: "${nodeName}" not found`);
         continue;
       }
-      itemLibrary.set(nodeName, computeFitParams(node, baseDef));
+      itemLibrary.set(nodeName, computeFitParams(node, baseDef, itemsGltf.animations));
     }
   }
 
   const chickenDef = ITEM_DEFS.find((d) => d.key === "chicken");
-  itemLibrary.set("chicken", computeFitParams(chickenGltf.scene, chickenDef));
+  itemLibrary.set("chicken", computeFitParams(chickenGltf.scene, chickenDef, chickenGltf.animations));
 
   carSource = carGltf.scene;
   const cBox = new THREE.Box3().setFromObject(carSource);
@@ -442,9 +422,19 @@ async function loadItemLibrary() {
   });
 }
 
+function removeCellMesh(row, col) {
+  if (itemMeshes[row][col]) {
+    scene.remove(itemMeshes[row][col]);
+    itemMeshes[row][col] = null;
+    const key = `${row}_${col}`;
+    const mixer = itemMixers.get(key);
+    if (mixer) { mixer.stopAllAction(); itemMixers.delete(key); }
+  }
+}
+
 function spawnMesh(nodeKey, row, col) {
   if (!itemLibrary.has(nodeKey)) return;
-  const { source, scaleFactor, offsetX, offsetY, offsetZ } =
+  const { source, scaleFactor, offsetX, offsetY, offsetZ, animations } =
     itemLibrary.get(nodeKey);
   const obj = SkeletonUtils.clone(source);
   const tile = tileMeshes[row][col];
@@ -464,6 +454,18 @@ function spawnMesh(nodeKey, row, col) {
   });
   scene.add(obj);
   itemMeshes[row][col] = obj;
+  if (animations && animations.length > 0) {
+    const nodeNames = new Set();
+    obj.traverse((n) => { if (n.name) nodeNames.add(n.name); });
+    const clip = animations.find((c) =>
+      c.tracks.some((t) => nodeNames.has(t.name.split(/[.[]/)[0]))
+    );
+    if (clip) {
+      const mixer = new THREE.AnimationMixer(obj);
+      mixer.clipAction(clip).setLoop(THREE.LoopRepeat).play();
+      itemMixers.set(`${row}_${col}`, mixer);
+    }
+  }
 }
 
 function createGrowthLabel(row, col) {
@@ -505,6 +507,8 @@ function updateGrowthLabelContent(row, col) {
 }
 
 const _labelPos = new THREE.Vector3();
+const _carLabelVec = new THREE.Vector3();
+const _wpVec = new THREE.Vector3();
 function updateAllLabelPositions() {
   for (let row = 0; row < GRID; row++) {
     for (let col = 0; col < GRID; col++) {
@@ -531,8 +535,7 @@ function placeItem(row, col, name) {
   if (name && money < cost) return;
 
   if (itemMeshes[row][col]) {
-    scene.remove(itemMeshes[row][col]);
-    itemMeshes[row][col] = null;
+    removeCellMesh(row, col);
     money += refund;
   }
   removeGrowthLabel(row, col);
@@ -554,7 +557,13 @@ function placeItem(row, col, name) {
     updateGrowthLabelContent(row, col);
   }
   setTileMat(row, col);
-  saveGame();
+
+  if (name === "corn" && tutorialStep() === "corn") {
+    _tutPlantedCell = { row, col };
+    PixiUI.clearShopLock();
+    PixiUI.setShopCloseLocked(false);
+    _advance("grow");
+  }
 }
 
 function tickGrowth() {
@@ -570,12 +579,12 @@ function tickGrowth() {
       const newStage = Math.min(Math.floor(elapsed / stageTime), maxStage);
       if (newStage > state.stage) {
         state.stage = newStage;
-        if (itemMeshes[row][col]) {
-          scene.remove(itemMeshes[row][col]);
-          itemMeshes[row][col] = null;
-        }
+        removeCellMesh(row, col);
         spawnMesh(cropDef.stages[newStage], row, col);
-        if (newStage === maxStage) setTileMat(row, col);
+        if (newStage === maxStage) {
+          setTileMat(row, col);
+          if (tutorialStep() === "grow") _advance("harvest");
+        }
       }
       updateGrowthLabelContent(row, col);
     }
@@ -649,9 +658,20 @@ window.addEventListener("pointerup", (e) => {
   if (PixiUI.isAnyModalOpen()) return;
   const dx = e.clientX - _downX;
   const dy = e.clientY - _downY;
-  if (Math.sqrt(dx * dx + dy * dy) > 6) return; // drag, not a click
+  if (Math.sqrt(dx * dx + dy * dy) > 6) return; 
+  const tStep = tutorialStep();
+  if (tStep !== "done") {
+    if (tStep !== "cell" && tStep !== "harvest") return;
+  }
 
   const hit = hitTile(e);
+
+  if (tStep === "cell" && hit && _tutTargetCell) {
+    if (hit.row !== _tutTargetCell.row || hit.col !== _tutTargetCell.col) return;
+  }
+  if (tStep === "harvest" && hit && _tutPlantedCell) {
+    if (hit.row !== _tutPlantedCell.row || hit.col !== _tutPlantedCell.col) return;
+  }
   const prev = selectedCell;
   if (hit) {
     const collected =
@@ -676,6 +696,14 @@ window.addEventListener("pointerup", (e) => {
 function showPanel(row, col) {
   const current = getCellKey(row, col);
   PixiUI.showShopModal(current, money);
+  if (tutorialStep() === "cell") {
+    _clearTutorialLock();
+    _advance("corn"); 
+  }
+  if (tutorialStep() === "corn") {
+    PixiUI.setShopLock("corn");
+    PixiUI.setShopCloseLocked(true);
+  }
 }
 
 function hidePanel() {
@@ -708,12 +736,110 @@ for (const dz of [-ROAD_WIDTH / 2, ROAD_WIDTH / 2]) {
   scene.add(kerb);
 }
 
+let _camAnim = null;
+
+function _panCamera(toPos, toTarget, duration = 2.0, onDone = null) {
+  controls.enabled = false;
+  _camAnim = {
+    fromPos: camera.position.clone(),
+    fromTarget: controls.target.clone(),
+    toPos,
+    toTarget,
+    t: 0,
+    duration,
+    onDone,
+  };
+}
+
+function _panCameraToRoad() {
+  _panCamera(
+    new THREE.Vector3(SERVICE_X, 14, 22),
+    new THREE.Vector3(SERVICE_X, 0, ROAD_Z),
+    2.5,
+  );
+}
+
+function _advance(toStep) {
+  advanceTutorial(toStep);
+  _onTutorialAdvanced(toStep);
+}
+
+function _onTutorialAdvanced(toStep) {
+  if (toStep === "harvest" && _tutPlantedCell) {
+    _setTutorialLock(_tutPlantedCell.row, _tutPlantedCell.col);
+    const wx = ORIGIN + _tutPlantedCell.col * PITCH;
+    const wz = ORIGIN + _tutPlantedCell.row * PITCH;
+    _panCamera(
+      new THREE.Vector3(wx - 2, 10, wz + 10),
+      new THREE.Vector3(wx, 0, wz),
+      2.0,
+    );
+  } else if (toStep === "done") {
+    _clearTutorialLock();
+    _panCamera(
+      new THREE.Vector3(CAMERA_POS.x, CAMERA_POS.y, CAMERA_POS.z),
+      new THREE.Vector3(0, 0, 0),
+      2.0,
+      () => { controls.enabled = true; controls.enableRotate = true; },
+    );
+  }
+}
+
+function _cellScreenPos(row, col) {
+  _wpVec.set(ORIGIN + col * PITCH, TILE_HEIGHT, ORIGIN + row * PITCH);
+  _wpVec.project(camera);
+  return {
+    x: (_wpVec.x * 0.5 + 0.5) * window.innerWidth,
+    y: (_wpVec.y * -0.5 + 0.5) * window.innerHeight,
+  };
+}
+
+function _updateTutorialArrow() {
+  const step = tutorialStep();
+  if (step === "cell") {
+    const mid = Math.floor(GRID / 2);
+    const pos = _cellScreenPos(mid, mid);
+    showArrow(pos.x, pos.y, "Tap a plot!");
+  } else if (step === "corn") {
+    const pos = PixiUI.getShopCardScreenPos("corn");
+    if (pos) showArrow(pos.x, pos.y, "Plant Corn!");
+    else hideArrow();
+  } else if (step === "grow") {
+    hideArrow();
+    showHint("⏳ Corn growing — check back soon!");
+  } else if (step === "harvest") {
+    if (_tutPlantedCell) {
+      const pos = _cellScreenPos(_tutPlantedCell.row, _tutPlantedCell.col);
+      showArrow(pos.x, pos.y, "Harvest your Corn!");
+    }
+  } else if (step === "car_wait") {
+    hideArrow();
+    showHint("🚗 A customer is on the way...");
+  } else if (step === "sell") {
+    const servingCar = carQueue.find((c) => c.state === "serving");
+    if (servingCar?.labelEl) {
+      const btn = servingCar.labelEl.querySelector(".car-sell-btn");
+      if (btn) {
+        const rect = btn.getBoundingClientRect();
+        showArrow(rect.left + rect.width / 2, rect.top, "Sell Corn!");
+      }
+    }
+  }
+}
+
 const PRODUCIBLE_ITEMS = Object.keys(SELL_PRICES);
 
 let carSource = null;
 let nextCarSpawn = Infinity;
+let _firstCarSpawned = false;
 const carQueue = [];
 const carLabelsEl = document.getElementById("car-labels");
+const carAlertEl = document.getElementById("car-alert");
+
+function updateCarAlert() {
+  const hasWaiting = carQueue.some((c) => c.state === "serving");
+  carAlertEl.classList.toggle("visible", hasWaiting);
+}
 
 function queueTargetX(idx) {
   return SERVICE_X - idx * QUEUE_GAP;
@@ -744,8 +870,9 @@ function rebindCarSellButtons(car) {
       car.wishlist[item] -= qty;
       money += qty * SELL_PRICES[item];
       renderMoney();
-      renderStorage();
-      saveGame();
+      updateStorageUI();
+    
+      _advance("done");
       refreshCarLabel(car);
       if (Object.values(car.wishlist).every((v) => v <= 0)) startCarExit(car);
     });
@@ -778,12 +905,13 @@ function refreshCarLabel(car) {
     })
     .join("");
 
+  const showPass = tutorialStep() === "done";
   car.labelEl.innerHTML =
     rows +
-    `<div class="car-pass-row"><button class="car-pass-btn">Pass</button></div>`;
+    (showPass ? `<div class="car-pass-row"><button class="car-pass-btn">Pass</button></div>` : "");
   rebindCarSellButtons(car);
 
-  car.labelEl.querySelector(".car-pass-btn").addEventListener("click", (e) => {
+  car.labelEl.querySelector(".car-pass-btn")?.addEventListener("click", (e) => {
     e.stopPropagation();
     startCarExit(car);
   });
@@ -791,11 +919,11 @@ function refreshCarLabel(car) {
 
 function updateCarLabelPos(car) {
   if (!car.labelEl || car.state !== "serving") return;
-  const p = car.mesh.position.clone();
-  p.y += CAR_LABEL_Y;
-  p.project(camera);
-  car.labelEl.style.left = `${(p.x * 0.5 + 0.5) * innerWidth}px`;
-  car.labelEl.style.top = `${(p.y * -0.5 + 0.5) * innerHeight}px`;
+  _carLabelVec.copy(car.mesh.position);
+  _carLabelVec.y += CAR_LABEL_Y;
+  _carLabelVec.project(camera);
+  car.labelEl.style.left = `${(_carLabelVec.x * 0.5 + 0.5) * innerWidth}px`;
+  car.labelEl.style.top = `${(_carLabelVec.y * -0.5 + 0.5) * innerHeight}px`;
 }
 
 function startCarExit(car) {
@@ -803,6 +931,7 @@ function startCarExit(car) {
   car.state = "exiting";
   refreshCarLabel(car);
   car.targetX = CAR_EXIT_X;
+  updateCarAlert();
 }
 
 function advanceQueue() {
@@ -824,7 +953,6 @@ function spawnCar() {
       n.castShadow = true;
       n.receiveShadow = true;
       const name = (n.name || "").toLowerCase();
-      console.log(name);
       if (
         name.includes("cube_material008_0") &&
         n.material &&
@@ -845,18 +973,25 @@ function spawnCar() {
   labelEl.style.display = "none";
   carLabelsEl.appendChild(labelEl);
 
+  const isFirstEver = carQueue.length === 0 && !_firstCarSpawned;
+  _firstCarSpawned = true;
   const car = {
     mesh,
-    wishlist: generateWishlist(),
+    wishlist: isFirstEver ? { corn: 1 } : generateWishlist(),
     state: "moving",
     targetX: queueTargetX(carQueue.length),
     labelEl,
   };
   carQueue.push(car);
+
+  if (tutorialStep() === "car_wait") _panCameraToRoad();
 }
 
 function tickCars(delta, nowSec) {
-  if (nowSec >= nextCarSpawn && carQueue.length < MAX_QUEUE) {
+  const tIdx = TUT_STEPS.indexOf(tutorialStep());
+  const carWaitIdx = TUT_STEPS.indexOf("car_wait");
+  const tutBlocking = tIdx >= 0 && tIdx < carWaitIdx;
+  if (nowSec >= nextCarSpawn && carQueue.length < MAX_QUEUE && !tutBlocking) {
     spawnCar();
     nextCarSpawn = nowSec + SPAWN_MIN + Math.random() * (SPAWN_MAX - SPAWN_MIN);
   }
@@ -876,13 +1011,18 @@ function tickCars(delta, nowSec) {
           car.labelEl?.remove();
           carQueue.splice(i, 1);
           advanceQueue();
+          updateCarAlert();
         } else if (i === 0) {
           car.state = "serving";
+          car.serveStartTime = nowSec;
           refreshCarLabel(car);
+          updateCarAlert();
+          if (tutorialStep() === "car_wait") _advance("sell");
         }
       }
     } else if (car.state === "serving") {
       updateCarLabelPos(car);
+      if (nowSec - car.serveStartTime > CAR_PATIENCE) startCarExit(car);
     }
   }
 }
@@ -893,6 +1033,20 @@ function animate(ts = 0) {
   const delta = Math.min((ts - _lastTs) / 1000, 0.1);
   _lastTs = ts;
   const nowSec = ts / 1000;
+  if (_camAnim) {
+    _camAnim.t += delta / _camAnim.duration;
+    const t = Math.min(_camAnim.t, 1);
+    const e = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    camera.position.lerpVectors(_camAnim.fromPos, _camAnim.toPos, e);
+    controls.target.lerpVectors(_camAnim.fromTarget, _camAnim.toTarget, e);
+    if (t >= 1) {
+      const cb = _camAnim.onDone;
+      _camAnim = null;
+      if (cb) cb();
+      else if (tutorialStep() !== "done") controls.enabled = false;
+      else controls.enabled = true;
+    }
+  }
   controls.update();
   controls.target.x = Math.max(
     CTRL_PAN_MIN.x,
@@ -902,10 +1056,12 @@ function animate(ts = 0) {
     CTRL_PAN_MIN.z,
     Math.min(CTRL_PAN_MAX.z, controls.target.z),
   );
+  for (const mixer of itemMixers.values()) mixer.update(delta);
   tickGrowth();
   tickAnimals();
   tickCars(delta, nowSec);
   updateAllLabelPositions();
+  if (tutorialStep() !== "done") _updateTutorialArrow();
   renderer.render(scene, camera);
 }
 animate();
@@ -969,10 +1125,16 @@ Promise.all([loadItemLibrary(), _pixiReady])
       },
     });
 
-    loadGame();
-    restoreCellMeshes();
+    initTutorial();
+    if (tutorialStep() !== "done") {
+      controls.enableRotate = false;
+      controls.enabled = false;
+      const mid = Math.floor(GRID / 2);
+      _tutTargetCell = { row: mid, col: mid };
+      _setTutorialLock(mid, mid);
+    }
     renderMoney();
-    renderStorage();
+    updateStorageUI();
     nextCarSpawn = performance.now() / 1000 + 10;
     const loading = document.getElementById("loading-screen");
     if (loading) {
@@ -980,8 +1142,6 @@ Promise.all([loadItemLibrary(), _pixiReady])
       setTimeout(() => loading.remove(), 600);
     }
     playBg();
-
-    setInterval(() => window.dispatchEvent(new Event("resize")), 1000);
   })
   .catch((err) => {
     console.error("Boot failed:", err);

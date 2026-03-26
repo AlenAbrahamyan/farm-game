@@ -136,24 +136,25 @@ export const FOREST_POSITIONS = [
   { x: 4, y: -2.65, z: -28 },
 ];
 
-//Road
+// Road
 export const ROAD_Z = 8;
 export const ROAD_WIDTH = 3.2;
 export const ROAD_LENGTH = 200;
 
-//Car queue
-export const CAR_ENTER_X = -44;
+// Car queue
+export const CAR_ENTER_X = -25;
 export const CAR_EXIT_X = 44;
 export const SERVICE_X = -6;
 export const QUEUE_GAP = 6;
 export const MAX_QUEUE = 4;
-export const CAR_SPEED = 7;
-export const SPAWN_MIN = 15;
-export const SPAWN_MAX = 35;
+export const CAR_SPEED = 11;
+export const SPAWN_MIN = 2;
+export const SPAWN_MAX = 4;
 export const CAR_Y = 0.83;
 export const CAR_ROTATION_Y = Math.PI / 2;
 export const CAR_SCALE = 2;
 export const CAR_LABEL_Y = 0.4;
+export const CAR_PATIENCE = 30;
 export const CAR_WISH_MIN_TYPES = 1;
 export const CAR_WISH_MAX_TYPES = 3;
 export const CAR_WISH_MIN_QTY = 1;
