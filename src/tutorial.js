@@ -1,12 +1,17 @@
 export const STEPS = ["cell", "corn", "grow", "harvest", "car_wait", "sell", "done"];
 
-let _step = "done";
-let _arrowEl = null;
-let _hintEl = null;
+let _step        = "done";
+let _plantedCell = null;
+let _arrowEl     = null;
+let _hintEl      = null;
 let _arrowVisible = false;
 
+export function setPlantedCell(cell) { _plantedCell = cell; }
+export function getPlantedCell()     { return _plantedCell; }
+
 export function initTutorial() {
-  _step = "cell";  
+  _step        = "cell";
+  _plantedCell = null;
 
   _arrowEl = document.createElement("div");
   _arrowEl.id = "tut-arrow";

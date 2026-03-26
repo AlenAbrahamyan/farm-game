@@ -136,12 +136,10 @@ export const FOREST_POSITIONS = [
   { x: 4, y: -2.65, z: -28 },
 ];
 
-// Road
 export const ROAD_Z = 8;
 export const ROAD_WIDTH = 3.2;
 export const ROAD_LENGTH = 200;
 
-// Car queue
 export const CAR_ENTER_X = -25;
 export const CAR_EXIT_X = 44;
 export const SERVICE_X = -6;
